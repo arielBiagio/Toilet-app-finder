@@ -314,7 +314,13 @@ export default function App() {
     if (!selectedId) return
     const target = event.target as Element
     if (target.closest('.place-detail, .restroom-marker, .place-card')) return
+    dismissSelectedRestroom()
+  }
+
+  function dismissSelectedRestroom() {
     setSelectedId(null)
+    setSheetPeek(true)
+    requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'smooth' }))
   }
 
   const manualOriginForm = manualFormOpen && <form className="manual-origin" onSubmit={submitManualOrigin}><label>Latitud<input name="latitude" type="text" inputMode="decimal" placeholder="38.8895" defaultValue={origin?.latitude ?? ''} required /></label><label>Longitud oeste<input name="longitude" type="text" inputMode="decimal" placeholder="77.0280" defaultValue={origin ? Math.abs(origin.longitude) : ''} required /><small>El signo − se agrega automáticamente.</small></label><button type="submit">Usar punto</button></form>
@@ -331,7 +337,7 @@ export default function App() {
 
       <section ref={sheetRef} className={`results-sheet ${emergencyMode ? 'emergency-sheet' : ''} ${sheetPeek ? 'peek' : ''}`} aria-labelledby="results-title">
         <button className="sheet-handle" type="button" onPointerDown={startSheetGesture} onPointerUp={finishSheetGesture} aria-label={sheetPeek ? 'Mostrar resultados' : 'Mostrar más mapa'}><span /></button>
-        {selectedRestroom && <RestroomDetail restroom={selectedRestroom} distance={selectedDistance} favorite={profile.favoriteIds.includes(selectedRestroom.id)} onClose={() => setSelectedId(null)} onFavorite={() => toggleFavorite(selectedRestroom.id)} />}
+        {selectedRestroom && <RestroomDetail restroom={selectedRestroom} distance={selectedDistance} favorite={profile.favoriteIds.includes(selectedRestroom.id)} onClose={dismissSelectedRestroom} onFavorite={() => toggleFavorite(selectedRestroom.id)} />}
         {emergencyMode ? <>
           <div className="sheet-heading"><div><span className="section-kicker hot">URGENCIA</span><h2 id="results-title">Más cercanos</h2></div><span className="live-dot">RADAR</span></div>
           {!origin && <div className="action-grid"><button className="primary-button hot-button" type="button" onClick={requestDeviceLocation} disabled={locationState === 'loading'}><Icon name="crosshair" />{locationState === 'loading' ? 'Buscando…' : 'Usar mi ubicación'}</button><button className="secondary-button" type="button" onClick={() => setManualFormOpen((open) => !open)}>Elegir punto</button></div>}
