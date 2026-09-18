@@ -59,6 +59,8 @@ function MapCanvas({ onMapError, origin, restrooms, selectedId, onSelect }: {
   const mapRef = useRef<Map | null>(null)
   const userMarkerRef = useRef<Marker | null>(null)
   const restroomMarkersRef = useRef<Marker[]>([])
+  const selectedCameraRef = useRef<{ center: [number, number]; zoom: number } | null>(null)
+  const previousSelectedIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (!node.current || !runtimeConfig.mapTilerKey) return
@@ -114,7 +116,28 @@ function MapCanvas({ onMapError, origin, restrooms, selectedId, onSelect }: {
   useEffect(() => {
     const map = mapRef.current
     const restroom = restrooms.find((item) => item.id === selectedId)
-    if (map && restroom) map.flyTo({ center: [restroom.longitude, restroom.latitude], zoom: 15.7, duration: 650 })
+    if (!map) return
+    let restoreTimer: number | undefined
+
+    const previousSelectedId = previousSelectedIdRef.current
+    if (restroom && previousSelectedId === null) {
+      const center = map.getCenter()
+      selectedCameraRef.current = { center: [center.lng, center.lat], zoom: map.getZoom() }
+    }
+
+    if (restroom && previousSelectedId !== selectedId) {
+      map.flyTo({ center: [restroom.longitude, restroom.latitude], zoom: 15.7, duration: 650 })
+    } else if (!selectedId && previousSelectedId !== null && selectedCameraRef.current) {
+      const camera = selectedCameraRef.current
+      selectedCameraRef.current = null
+      restoreTimer = window.setTimeout(() => {
+        map.resize()
+        map.flyTo({ center: camera.center, zoom: Math.max(camera.zoom - .25, 11), duration: 700 })
+      }, 180)
+    }
+
+    previousSelectedIdRef.current = selectedId
+    return () => window.clearTimeout(restoreTimer)
   }, [selectedId, restrooms])
 
   if (!runtimeConfig.mapTilerKey) return <div className="map-fallback" role="status"><Icon name="map" size={34} /><div><strong>Mapa en espera</strong><span>Configura la clave pública de MapTiler y reinicia Vite.</span></div></div>
