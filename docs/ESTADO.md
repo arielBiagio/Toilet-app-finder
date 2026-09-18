@@ -1,6 +1,6 @@
 # Estado del proyecto y traspaso
 
-Última actualización: **2026-09-18 — exploración principal funcional con catálogo provisional; migración comunitaria pendiente de aplicar y probar con usuarios A/B**.
+Última actualización: **2026-09-18 — catálogo inicial publicado en Supabase; pruebas comunitarias con usuarios A/B pendientes**.
 
 ## Completado en esta entrega
 
@@ -28,6 +28,7 @@
 - Etapa 5, progreso: Perfil consulta aportes aprobados, verificaciones y badges del usuario. El navegador no puede adjudicar badges; solo lee los creados por triggers de base de datos.
 - Funcionalidad principal: Explorar carga primero los registros publicados de Supabase y, mientras la base pública devuelve cero filas, utiliza los 30 candidatos locales con coordenadas provisionales. El mapa muestra marcadores seleccionables y la lista permite abrir una ficha con dirección, acceso, horario, notas, comodidades, favoritos y un enlace peatonal a Google Maps.
 - Funcionalidad principal: los filtros actúan sobre la lista y los marcadores, la ubicación ordena por distancia real mediante Haversine y el modo SOS muestra las tres opciones admisibles más cercanas. Favoritos ya muestra fichas reales y permite regresar al punto seleccionado en el mapa.
+- Catálogo de práctica publicado: la migración `202609180002_publish_practice_catalog.sql` asignó coordenadas a los 30 candidatos y estableció `publication_status = 'published'` y `operational_status = 'operating'`. Conserva `field_verified_at = null` para diferenciarlos de una futura verificación presencial.
 
 ## Comprobaciones realizadas
 
@@ -52,6 +53,7 @@
 - `npm run check` completó sin errores tras añadir Auth, APIs comunitarias y progreso. La CLI de Supabase no está instalada y `.env.local` no contiene todavía `VITE_SUPABASE_PUBLISHABLE_KEY`, por lo que la migración y las pruebas RLS entre usuarios A/B siguen pendientes en el proyecto remoto.
 - La clave publicable de Supabase quedó configurada localmente y validada. La API pública devolvió cero baños porque las filas remotas continúan en borrador; el frontend usa el catálogo provisional hasta que existan filas publicadas con coordenadas.
 - Se verificó en navegador la presencia de 30 marcadores y 30 fichas, la selección de un marcador, la ficha detallada, el guardado local y la aparición del lugar en Favoritos.
+- La migración de publicación se ejecutó correctamente desde SQL Editor. La API con clave publicable devolvió `200` y 30 filas visibles: 30 publicadas, 30 operativas y 30 con coordenadas. Después de recargar, Perfil confirmó `Datos cargados desde Supabase` y desapareció el aviso del catálogo local provisional.
 
 ## Pendiente, no simular como completado
 
@@ -62,7 +64,7 @@
 - Visitas de campo y resolución de posible duplicado en Sylvan Theater.
 - Políticas de lectura de registros publicados y permisos de usuarios. Las tablas operativas y su migración ya están implementadas; no hay todavía ninguna política de lectura porque todos los registros continúan en borrador.
 - Aplicar la migración comunitaria de etapa 5 y probar sus políticas con dos usuarios reales de prueba y un moderador. Hasta entonces, Auth permanece en modo no configurado y no se afirma que haya reportes remotos operativos.
-- Publicar filas operativas con coordenadas validadas para que Supabase reemplace automáticamente el catálogo provisional incluido en la aplicación.
+- Validar y corregir progresivamente las coordenadas, entradas y horarios del catálogo ya publicado; la aplicación usa Supabase como fuente principal y conserva el catálogo local como respaldo de desarrollo.
 - Configuración de proveedor de mapas/rutas y despliegue.
 - Clave pública restringida de MapTiler para mostrar el mapa base. Sin ella, la pantalla usa su estado alternativo accesible y no carga mapas de terceros.
 
