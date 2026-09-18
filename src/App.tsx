@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { FormEvent, ReactNode } from 'react'
+import type { FormEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 import { Map, Marker } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { runtimeConfig } from './lib/runtimeConfig'
@@ -176,6 +176,9 @@ export default function App() {
   const [restrooms, setRestrooms] = useState<Restroom[]>([])
   const [catalogSource, setCatalogSource] = useState<'loading' | 'supabase' | 'demo'>('loading')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [sheetPeek, setSheetPeek] = useState(false)
+  const sheetRef = useRef<HTMLElement>(null)
+  const sheetGestureStart = useRef<number | null>(null)
   const communityProgress = useCommunityProgress()
   const reportMapError = useCallback(() => setMapFailed(true), [])
   const selectRestroom = useCallback((id: string) => setSelectedId(id), [])
@@ -205,6 +208,16 @@ export default function App() {
       return next
     })
   }, [catalogSource, restrooms])
+
+  useEffect(() => {
+    if (!selectedId) return
+    setSheetPeek(false)
+    requestAnimationFrame(() => {
+      const sheetTop = sheetRef.current?.offsetTop
+      if (sheetTop === undefined) return
+      window.scrollTo({ top: Math.max(0, sheetTop - window.innerHeight * .48), behavior: 'smooth' })
+    })
+  }, [selectedId])
 
   const results = useMemo(() => restrooms
     .filter((restroom) => !filters.noPurchase || restroom.requiresPurchase === false)
@@ -266,14 +279,47 @@ export default function App() {
   function submitManualOrigin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const form = new FormData(event.currentTarget)
-    const latitude = Number(form.get('latitude')); const longitude = Number(form.get('longitude'))
+    const parseCoordinate = (value: FormDataEntryValue | null) => Number(String(value ?? '').trim().replace(',', '.'))
+    const latitude = parseCoordinate(form.get('latitude'))
+    const longitudeInput = parseCoordinate(form.get('longitude'))
+    const longitude = longitudeInput > 0 ? -longitudeInput : longitudeInput
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return
     setOrigin({ kind: 'manual', latitude, longitude }); setLocationState(inCoverage(latitude, longitude) ? 'idle' : 'outside'); setManualFormOpen(false)
   }
 
-  const manualOriginForm = manualFormOpen && <form className="manual-origin" onSubmit={submitManualOrigin}><label>Latitud<input name="latitude" type="number" step="any" inputMode="decimal" placeholder="38.8895" required /></label><label>Longitud<input name="longitude" type="number" step="any" inputMode="decimal" placeholder="-77.0280" required /></label><button type="submit">Usar punto</button></form>
+  function startSheetGesture(event: ReactPointerEvent<HTMLButtonElement>) {
+    sheetGestureStart.current = event.clientY
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }
 
-  return <main className={`app-shell ${emergencyMode ? 'emergency-mode' : ''}`}>
+  function finishSheetGesture(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (sheetGestureStart.current === null) return
+    const movement = event.clientY - sheetGestureStart.current
+    sheetGestureStart.current = null
+    if (Math.abs(movement) < 24) {
+      setSheetPeek((current) => !current)
+      if (!sheetPeek) window.scrollTo({ top: 0, behavior: 'smooth' })
+      return
+    }
+    if (movement > 0) {
+      setSheetPeek(true)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    } else {
+      setSheetPeek(false)
+      requestAnimationFrame(() => sheetRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+    }
+  }
+
+  function dismissDetailFromBackground(event: ReactPointerEvent<HTMLElement>) {
+    if (!selectedId) return
+    const target = event.target as Element
+    if (target.closest('.place-detail, .restroom-marker, .place-card')) return
+    setSelectedId(null)
+  }
+
+  const manualOriginForm = manualFormOpen && <form className="manual-origin" onSubmit={submitManualOrigin}><label>Latitud<input name="latitude" type="text" inputMode="decimal" placeholder="38.8895" defaultValue={origin?.latitude ?? ''} required /></label><label>Longitud oeste<input name="longitude" type="text" inputMode="decimal" placeholder="77.0280" defaultValue={origin ? Math.abs(origin.longitude) : ''} required /><small>El signo − se agrega automáticamente.</small></label><button type="submit">Usar punto</button></form>
+
+  return <main className={`app-shell ${emergencyMode ? 'emergency-mode' : ''}`} onPointerDownCapture={dismissDetailFromBackground}>
     {activeView === 'explore' && <div className="screen explore-screen">
       <section className={`map-stage ${emergencyMode ? 'radar-map' : ''}`} aria-label="Mapa y cobertura">
         <MapCanvas onMapError={reportMapError} origin={origin} restrooms={results.map((item) => item.restroom)} selectedId={selectedId} onSelect={selectRestroom} />
@@ -283,8 +329,8 @@ export default function App() {
         <button className="locate-button" type="button" onClick={requestDeviceLocation} disabled={locationState === 'loading'} aria-label="Usar mi ubicación"><Icon name="crosshair" size={21} /></button><div className="map-fade" aria-hidden="true" />
       </section>
 
-      <section className={`results-sheet ${emergencyMode ? 'emergency-sheet' : ''}`} aria-labelledby="results-title">
-        <span className="sheet-handle" aria-hidden="true" />
+      <section ref={sheetRef} className={`results-sheet ${emergencyMode ? 'emergency-sheet' : ''} ${sheetPeek ? 'peek' : ''}`} aria-labelledby="results-title">
+        <button className="sheet-handle" type="button" onPointerDown={startSheetGesture} onPointerUp={finishSheetGesture} aria-label={sheetPeek ? 'Mostrar resultados' : 'Mostrar más mapa'}><span /></button>
         {selectedRestroom && <RestroomDetail restroom={selectedRestroom} distance={selectedDistance} favorite={profile.favoriteIds.includes(selectedRestroom.id)} onClose={() => setSelectedId(null)} onFavorite={() => toggleFavorite(selectedRestroom.id)} />}
         {emergencyMode ? <>
           <div className="sheet-heading"><div><span className="section-kicker hot">URGENCIA</span><h2 id="results-title">Más cercanos</h2></div><span className="live-dot">RADAR</span></div>
