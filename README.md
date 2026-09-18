@@ -40,6 +40,12 @@ Copia `.env.example` como `.env.local` y configura una clave pública de MapTile
 VITE_MAPTILER_KEY=tu_clave_publica
 ```
 
+Para probar la cuenta opcional y las contribuciones, aplica las migraciones de `supabase/migrations/` y añade la clave publicable del proyecto:
+
+```text
+VITE_SUPABASE_PUBLISHABLE_KEY=tu_clave_publicable
+```
+
 Después inicia el servidor:
 
 ```bash

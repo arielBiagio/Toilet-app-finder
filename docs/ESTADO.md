@@ -1,6 +1,6 @@
 # Estado del proyecto y traspaso
 
-Última actualización: **2026-09-17 — etapas 0–4 implementadas; catálogo operativo sin ubicaciones publicadas**.
+Última actualización: **2026-09-18 — etapa 5 implementada localmente; migración comunitaria pendiente de aplicar y probar con usuarios A/B**.
 
 ## Completado en esta entrega
 
@@ -23,6 +23,9 @@
 - Etapa 4: Perfil declara con claridad que no hay cuenta ni copia local del catálogo público. Cuando exista una copia local futura, deberá mostrar su fecha de actualización; hoy no se presenta una fecha ficticia.
 - Rediseño móvil posterior a la etapa 4: la app ahora tiene tres pantallas completas e independientes. Explorar muestra el mapa a todo el ancho del contenedor y una hoja de resultados desplazable; Favoritos y Perfil tienen sus propias cabeceras, estados vacíos y contenido. La navegación inferior permanece fija y el modo urgencia conserva el radar sobre el mapa.
 - Ajuste de interfaz móvil: se eliminó la barra superior y los controles de zoom; el mapa ocupa aproximadamente 67% de la altura visible. SOS y ubicación son controles circulares opuestos en las esquinas inferiores. Al recibir coordenadas, MapLibre crea un marcador azul y centra el mapa con una transición. El texto del modo urgencia se redujo y las pantallas incorporan una animación breve de entrada.
+- Etapa 5, implementación local: migración `202609180001_stage5_community.sql` preparada con perfiles, favoritos sincronizables, reportes, reseñas, resúmenes públicos sin autores y badges otorgados por triggers tras aprobación. Incluye RLS, grants mínimos, límites de frecuencia, bloqueo de duplicados pendientes y políticas que impiden la autoaprobación desde un cliente autenticado.
+- Etapa 5, frontend: cliente de Supabase opcional, sesión persistente, acceso mediante enlace mágico, edición del nombre visible y APIs para sincronizar favoritos y enviar reportes/reseñas. Buscar, usar radar y favoritos locales siguen funcionando sin cuenta ni clave de Supabase.
+- Etapa 5, progreso: Perfil consulta aportes aprobados, verificaciones y badges del usuario. El navegador no puede adjudicar badges; solo lee los creados por triggers de base de datos.
 
 ## Comprobaciones realizadas
 
@@ -44,6 +47,7 @@
 - `npm run build` completó correctamente con `vite-plugin-pwa` 1.3.0: generó `dist/manifest.webmanifest`, `dist/sw.js` y `dist/workbox-9c191d2f.js`. El build conserva una advertencia de tamaño del bundle principal: 1.256,74 kB sin comprimir y 352,16 kB gzip; conviene dividir MapLibre antes de un despliegue de producción amplio.
 - Inspección del `dist/sw.js`: precache de 7 recursos propios, ruta de navegación al shell y ninguna referencia a `maptiler`; por tanto no hay regla de caché runtime de mapas o rutas.
 - Verificación visual local en `http://127.0.0.1:5175/`: mapa base, controles, botones de navegación y el estado honesto de cero publicados están presentes.
+- `npm run check` completó sin errores tras añadir Auth, APIs comunitarias y progreso. La CLI de Supabase no está instalada y `.env.local` no contiene todavía `VITE_SUPABASE_PUBLISHABLE_KEY`, por lo que la migración y las pruebas RLS entre usuarios A/B siguen pendientes en el proyecto remoto.
 
 ## Pendiente, no simular como completado
 
@@ -53,13 +57,14 @@
 - Evidencia específica de baños para candidatos `venue_only` (IDs 3, 26 y 29).
 - Visitas de campo y resolución de posible duplicado en Sylvan Theater.
 - Políticas de lectura de registros publicados y permisos de usuarios. Las tablas operativas y su migración ya están implementadas; no hay todavía ninguna política de lectura porque todos los registros continúan en borrador.
-- Lectura desde el frontend de filas publicadas, fichas reales de favoritos, cuentas, contribuciones y fecha de una futura copia local del catálogo.
+- Aplicar la migración comunitaria de etapa 5 y probar sus políticas con dos usuarios reales de prueba y un moderador. Hasta entonces, Auth permanece en modo no configurado y no se afirma que haya reportes remotos operativos.
+- Lectura desde el frontend de filas publicadas, fichas reales de favoritos y fecha de una futura copia local del catálogo.
 - Configuración de proveedor de mapas/rutas y despliegue.
 - Clave pública restringida de MapTiler para mostrar el mapa base. Sin ella, la pantalla usa su estado alternativo accesible y no carga mapas de terceros.
 
 ## Próxima acción recomendada
 
-Continuar con la **validación geográfica restante de la etapa 1**. Añadir una migración posterior solo para coordenadas que hayan sido revisadas contra una fuente apropiada o selección manual documentada; indicar `location_precision` correctamente y mantener `publication_status='draft'` hasta tener entrada, acceso y evidencia suficientes. No usar el centro de un edificio como si fuera una entrada ni incluir candidatos `venue_only` en recomendaciones. Después, crear las políticas de lectura y ejecutar la etapa 5 contra esas filas publicadas.
+Aplicar `202609180001_stage5_community.sql` en Supabase, configurar la clave publicable local y validar RLS con usuarios A/B antes de considerar completa la etapa 5. En paralelo, continuar la validación geográfica: sin baños publicados no hay fichas reales sobre las que enviar contribuciones.
 
 ## Registro para siguientes entregas
 

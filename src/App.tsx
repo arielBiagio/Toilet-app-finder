@@ -5,6 +5,8 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { runtimeConfig } from './lib/runtimeConfig'
 import { selectRadarCandidates } from './lib/radar'
 import { loadLocalProfile, saveLocalProfile } from './lib/localProfile'
+import { AccountPanel } from './components/AccountPanel'
+import { useCommunityProgress } from './hooks/useCommunityProgress'
 import './styles.css'
 
 type Origin = { kind: 'device' | 'manual'; latitude: number; longitude: number } | null
@@ -111,6 +113,7 @@ export default function App() {
   const [manualFormOpen, setManualFormOpen] = useState(false)
   const [mapFailed, setMapFailed] = useState(false)
   const [emergencyMode, setEmergencyMode] = useState(false)
+  const communityProgress = useCommunityProgress()
   const reportMapError = useCallback(() => setMapFailed(true), [])
   const activeFilterCount = Object.values(filters).filter(Boolean).length
   const radarCandidates = useMemo(() => selectRadarCandidates(publishedRadarCandidates, filters.accessible), [filters.accessible])
@@ -212,8 +215,13 @@ export default function App() {
     {activeView === 'profile' && <section className="screen profile-screen">
       <ScreenTitle eyebrow="AVENTURERO LOCAL" title="Mi perfil" action={<span className="profile-avatar"><Icon name="user" size={24} /></span>} />
       <div className="player-card"><div className="player-level"><span>1</span><small>NIVEL</small></div><div className="player-copy"><span>EXPLORADOR</span><h2>Visitante de DC</h2><p>Perfil guardado en este dispositivo</p><div className="xp-track"><span /></div><small>0 / 100 XP</small></div></div>
-      <div className="stats-grid"><div><strong>{profile.favoriteIds.length}</strong><span>Favoritos</span></div><div><strong>0</strong><span>Visitas</span></div><div><strong>0</strong><span>Aportes</span></div></div>
-      <section className="profile-section"><div className="section-heading"><div><span className="section-kicker">PROGRESO</span><h2>Badges</h2></div><span>0 / 3</span></div><div className="badge-grid"><div><span><Icon name="star" /></span><strong>Primer hallazgo</strong><small><Icon name="lock" size={12} /> Bloqueado</small></div><div><span><Icon name="shield" /></span><strong>Radar al rescate</strong><small><Icon name="lock" size={12} /> Bloqueado</small></div><div><span><Icon name="map" /></span><strong>Guía local</strong><small><Icon name="lock" size={12} /> Bloqueado</small></div></div></section>
+      <div className="stats-grid"><div><strong>{profile.favoriteIds.length}</strong><span>Favoritos</span></div><div><strong>{communityProgress.verifiedVisits}</strong><span>Visitas</span></div><div><strong>{communityProgress.approvedContributions}</strong><span>Aportes</span></div></div>
+      <AccountPanel />
+      <section className="profile-section"><div className="section-heading"><div><span className="section-kicker">PROGRESO</span><h2>Badges</h2></div><span>{communityProgress.badgeKeys.length} / 3</span></div><div className="badge-grid">
+        <div className={communityProgress.badgeKeys.includes('first_approved') ? 'unlocked' : ''}><span><Icon name="star" /></span><strong>Primer aporte</strong><small>{communityProgress.badgeKeys.includes('first_approved') ? 'Obtenido' : <><Icon name="lock" size={12} /> Bloqueado</>}</small></div>
+        <div className={communityProgress.badgeKeys.includes('five_corrections') ? 'unlocked' : ''}><span><Icon name="shield" /></span><strong>Ojo de halcón</strong><small>{communityProgress.badgeKeys.includes('five_corrections') ? 'Obtenido' : <><Icon name="lock" size={12} /> Bloqueado</>}</small></div>
+        <div className={communityProgress.badgeKeys.includes('ten_verifications') ? 'unlocked' : ''}><span><Icon name="map" /></span><strong>Guía local</strong><small>{communityProgress.badgeKeys.includes('ten_verifications') ? 'Obtenido' : <><Icon name="lock" size={12} /> Bloqueado</>}</small></div>
+      </div></section>
       <section className="profile-section settings-card"><div><span className="settings-icon"><Icon name="shield" /></span><span><strong>Accesibilidad en radar</strong><small>Recordar esta preferencia</small></span></div><label className="switch"><input type="checkbox" checked={filters.accessible} onChange={() => updateFilter('accessible')} /><span /></label></section>
       <section className="profile-section data-card"><span className="section-kicker">DATOS LOCALES</span><h3>Sin catálogo descargado</h3><p>Los mapas y rutas no se guardan sin conexión. Tus preferencias permanecen únicamente en este navegador.</p></section>
     </section>}

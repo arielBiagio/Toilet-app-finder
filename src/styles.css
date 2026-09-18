@@ -320,6 +320,9 @@ h1, h2, h3, p { margin-top: 0; }
 .badge-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
 .badge-grid>div { display: grid; justify-items: center; align-content: start; gap: 7px; min-height: 136px; padding: 13px 7px; border: 1px solid var(--line); border-radius: 15px; text-align: center; background: #0e1623; }
 .badge-grid>div>span { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 16px; color: #6f7f93; background: #192335; filter: grayscale(.6); }
+.badge-grid>div.unlocked { border-color: rgb(255 203 105 / 38%); background: linear-gradient(180deg, rgb(255 203 105 / 8%), #0e1623); }
+.badge-grid>div.unlocked>span { color: var(--gold); background: rgb(255 203 105 / 10%); filter: none; box-shadow: 0 0 18px rgb(255 203 105 / 9%); }
+.badge-grid>div.unlocked small { color: #e7bd68; }
 .badge-grid strong { font-size: .7rem; line-height: 1.25; }
 .badge-grid small { display: flex; align-items: center; gap: 3px; color: #68798d; font-size: .56rem; }
 .settings-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 22px; background: #0f1724; }
@@ -338,6 +341,16 @@ h1, h2, h3, p { margin-top: 0; }
 .data-card { padding: 15px; border: 1px solid var(--line); border-radius: 22px; background: #0e1623; }
 .data-card h3 { margin: 5px 0 5px; font-size: .85rem; }
 .data-card p { margin-bottom: 0; color: var(--muted); font-size: .7rem; line-height: 1.45; }
+.account-card { padding: 16px; border: 1px solid rgb(180 124 255 / 24%); border-radius: 22px; background: linear-gradient(145deg, rgb(180 124 255 / 8%), #0e1623 62%); }
+.account-card h3 { margin: 6px 0 5px; font-size: .9rem; overflow-wrap: anywhere; }
+.account-card>p { margin-bottom: 0; color: var(--muted); font-size: .72rem; line-height: 1.45; }
+.account-form { display: grid; gap: 10px; margin-top: 13px; }
+.account-form label { display: grid; gap: 6px; color: #aab8c9; font-size: .67rem; font-weight: 700; }
+.account-form input { width: 100%; min-height: 43px; padding: 0 12px; border: 1px solid #35455c; border-radius: 13px; color: var(--ink); background: #080e18; outline: none; }
+.account-form input:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgb(84 228 230 / 9%); }
+.account-form button { min-height: 43px; border: 0; border-radius: 13px; color: #071415; background: var(--cyan); font-size: .75rem; font-weight: 850; }
+.account-message { margin-top: 11px !important; padding: 9px 10px; border-radius: 12px; color: #bdebe7 !important; background: rgb(84 228 230 / 7%); }
+.account-signout { margin-top: 12px; padding: 7px 0; border: 0; color: #8e9db0; background: transparent; font-size: .7rem; text-decoration: underline; text-underline-offset: 3px; }
 
 .bottom-nav {
   position: fixed;
