@@ -191,6 +191,21 @@ export default function App() {
     return () => { active = false }
   }, [])
 
+  useEffect(() => {
+    if (catalogSource !== 'supabase' || restrooms.length === 0) return
+    setProfile((current) => {
+      const favoriteIds = [...new Set(current.favoriteIds.map((id) => {
+        const demoSeedId = /^demo-(\d+)$/.exec(id)?.[1]
+        if (!demoSeedId) return id
+        return restrooms.find((restroom) => restroom.seedId === Number(demoSeedId))?.id ?? id
+      }))]
+      if (favoriteIds.every((id, index) => id === current.favoriteIds[index]) && favoriteIds.length === current.favoriteIds.length) return current
+      const next = { ...current, favoriteIds }
+      saveLocalProfile(next)
+      return next
+    })
+  }, [catalogSource, restrooms])
+
   const results = useMemo(() => restrooms
     .filter((restroom) => !filters.noPurchase || restroom.requiresPurchase === false)
     .filter((restroom) => !filters.accessible || restroom.wheelchairAccess === 'yes')
