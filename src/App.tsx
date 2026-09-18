@@ -91,7 +91,7 @@ function MapCanvas({ onMapError, origin, restrooms, selectedId, onSelect }: {
       markerNode.type = 'button'
       markerNode.className = `restroom-marker${restroom.id === selectedId ? ' selected' : ''}`
       markerNode.setAttribute('aria-label', `Ver ${restroom.name}`)
-      markerNode.innerHTML = '<span></span>'
+      markerNode.innerHTML = '<span class="restroom-marker-pin"><i></i></span>'
       markerNode.addEventListener('click', () => onSelect(restroom.id))
       return new Marker({ element: markerNode, anchor: 'bottom' }).setLngLat([restroom.longitude, restroom.latitude]).addTo(map)
     })
@@ -166,7 +166,7 @@ function ScreenTitle({ eyebrow, title, action }: { eyebrow: string; title: strin
 
 export default function App() {
   const [origin, setOrigin] = useState<Origin>(null)
-  const [locationState, setLocationState] = useState<'idle' | 'loading' | 'denied' | 'outside'>('idle')
+  const [locationState, setLocationState] = useState<'idle' | 'loading' | 'denied' | 'unavailable' | 'outside'>('idle')
   const [profile, setProfile] = useState(loadLocalProfile)
   const [filters, setFilters] = useState<Filters>(() => ({ ...initialFilters, accessible: profile.radarAccessibility }))
   const [activeView, setActiveView] = useState<View>('explore')
@@ -233,10 +233,19 @@ export default function App() {
   function requestDeviceLocation() {
     if (!navigator.geolocation) { setLocationState('denied'); return }
     setLocationState('loading')
-    navigator.geolocation.getCurrentPosition(({ coords }) => {
+
+    const usePosition = ({ coords }: GeolocationPosition) => {
       setOrigin({ kind: 'device', latitude: coords.latitude, longitude: coords.longitude })
       setLocationState(inCoverage(coords.latitude, coords.longitude) ? 'idle' : 'outside')
-    }, () => setLocationState('denied'), { enableHighAccuracy: true, maximumAge: 60_000, timeout: 10_000 })
+    }
+
+    navigator.geolocation.getCurrentPosition(usePosition, (firstError) => {
+      if (firstError.code === firstError.PERMISSION_DENIED) { setLocationState('denied'); return }
+
+      navigator.geolocation.getCurrentPosition(usePosition, (fallbackError) => {
+        setLocationState(fallbackError.code === fallbackError.PERMISSION_DENIED ? 'denied' : 'unavailable')
+      }, { enableHighAccuracy: false, maximumAge: 600_000, timeout: 12_000 })
+    }, { enableHighAccuracy: true, maximumAge: 120_000, timeout: 18_000 })
   }
 
   function submitManualOrigin(event: FormEvent<HTMLFormElement>) {
@@ -265,7 +274,7 @@ export default function App() {
         {emergencyMode ? <>
           <div className="sheet-heading"><div><span className="section-kicker hot">URGENCIA</span><h2 id="results-title">Más cercanos</h2></div><span className="live-dot">RADAR</span></div>
           {!origin && <div className="action-grid"><button className="primary-button hot-button" type="button" onClick={requestDeviceLocation} disabled={locationState === 'loading'}><Icon name="crosshair" />{locationState === 'loading' ? 'Buscando…' : 'Usar mi ubicación'}</button><button className="secondary-button" type="button" onClick={() => setManualFormOpen((open) => !open)}>Elegir punto</button></div>}
-          {manualOriginForm}{locationState === 'denied' && <p className="notice">No pudimos usar tu ubicación. Elige un punto manual.</p>}{locationState === 'outside' && <p className="notice">Estás fuera de la cobertura inicial.</p>}
+          {manualOriginForm}{locationState === 'denied' && <p className="notice">Permiso de ubicación bloqueado. Habilítalo en el navegador o elige un punto.</p>}{locationState === 'unavailable' && <p className="notice">No hubo señal de ubicación. Puedes reintentar o elegir un punto.</p>}{locationState === 'outside' && <p className="notice">Estás fuera de la cobertura inicial.</p>}
           <label className="access-row"><span><Icon name="shield" /><strong>Accesibilidad</strong></span><input type="checkbox" checked={filters.accessible} onChange={() => updateFilter('accessible')} /></label>
           <div className="place-list urgent-list">{radarResults.map(({ restroom, distance }) => <PlaceCard key={restroom.id} restroom={restroom} distance={distance} favorite={profile.favoriteIds.includes(restroom.id)} selected={selectedId === restroom.id} urgent onSelect={() => selectRestroom(restroom.id)} onFavorite={() => toggleFavorite(restroom.id)} />)}</div>
         </> : <>
@@ -273,7 +282,7 @@ export default function App() {
           <div className="filter-strip" aria-label="Filtros de búsqueda"><button className={activeFilterCount ? 'filter-button active' : 'filter-button'} type="button"><Icon name="filter" size={17} />Filtros{activeFilterCount ? ` · ${activeFilterCount}` : ''}</button><label className={filters.withHours ? 'filter-chip selected' : 'filter-chip'}><input type="checkbox" checked={filters.withHours} onChange={() => updateFilter('withHours')} />Con horario</label><label className={filters.noPurchase ? 'filter-chip selected' : 'filter-chip'}><input type="checkbox" checked={filters.noPurchase} onChange={() => updateFilter('noPurchase')} />Sin compra</label><label className={filters.accessible ? 'filter-chip selected' : 'filter-chip'}><input type="checkbox" checked={filters.accessible} onChange={() => updateFilter('accessible')} />Accesible</label></div>
           <div className="origin-card"><span className="origin-symbol"><Icon name={origin ? 'pin' : 'crosshair'} /></span><div><strong>{origin ? 'Ordenados por distancia' : 'Activa tu ubicación'}</strong><p>{origin ? `Origen ${origin.kind === 'device' ? 'del dispositivo' : 'manual'}.` : 'Para ver cuál queda más cerca.'}</p></div>{!origin && <button type="button" onClick={requestDeviceLocation} disabled={locationState === 'loading'}>{locationState === 'loading' ? '…' : 'Usar'}</button>}</div>
           {!origin && <button className="text-button" type="button" onClick={() => setManualFormOpen((open) => !open)}>{manualFormOpen ? 'Cerrar' : 'Elegir coordenadas'}</button>}{manualOriginForm}
-          {locationState === 'denied' && <p className="notice">No pudimos usar tu ubicación. Puedes elegir un punto manual.</p>}{locationState === 'outside' && <p className="notice">Estás fuera de la cobertura inicial.</p>}
+          {locationState === 'denied' && <p className="notice">Permiso de ubicación bloqueado. Habilítalo en el navegador o usa coordenadas.</p>}{locationState === 'unavailable' && <p className="notice">No hubo señal de ubicación. Pulsa “Usar” para reintentar o elige coordenadas.</p>}{locationState === 'outside' && <p className="notice">Estás fuera de la cobertura inicial.</p>}
           {catalogSource === 'demo' && <p className="catalog-note">Catálogo inicial · ubicaciones pendientes de validación final</p>}
           {catalogSource === 'loading' ? <div className="quest-empty" role="status"><span className="empty-icon"><Icon name="map" size={32} /></span><h3>Cargando baños…</h3></div> : results.length === 0 ? <div className="quest-empty" role="status"><h3>No hay resultados con estos filtros</h3></div> : <div className="place-list">{results.map(({ restroom, distance }) => <PlaceCard key={restroom.id} restroom={restroom} distance={distance} favorite={profile.favoriteIds.includes(restroom.id)} selected={selectedId === restroom.id} onSelect={() => selectRestroom(restroom.id)} onFavorite={() => toggleFavorite(restroom.id)} />)}</div>}
           {mapFailed && <p className="notice">El mapa base tuvo un problema, pero puedes usar la lista.</p>}
