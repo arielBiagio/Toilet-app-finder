@@ -1,6 +1,6 @@
 # Estado del proyecto y traspaso
 
-Última actualización: **2026-09-18 — etapa 5 implementada localmente; migración comunitaria pendiente de aplicar y probar con usuarios A/B**.
+Última actualización: **2026-09-18 — exploración principal funcional con catálogo provisional; migración comunitaria pendiente de aplicar y probar con usuarios A/B**.
 
 ## Completado en esta entrega
 
@@ -26,6 +26,8 @@
 - Etapa 5, implementación local: migración `202609180001_stage5_community.sql` preparada con perfiles, favoritos sincronizables, reportes, reseñas, resúmenes públicos sin autores y badges otorgados por triggers tras aprobación. Incluye RLS, grants mínimos, límites de frecuencia, bloqueo de duplicados pendientes y políticas que impiden la autoaprobación desde un cliente autenticado.
 - Etapa 5, frontend: cliente de Supabase opcional, sesión persistente, acceso mediante enlace mágico, edición del nombre visible y APIs para sincronizar favoritos y enviar reportes/reseñas. Buscar, usar radar y favoritos locales siguen funcionando sin cuenta ni clave de Supabase.
 - Etapa 5, progreso: Perfil consulta aportes aprobados, verificaciones y badges del usuario. El navegador no puede adjudicar badges; solo lee los creados por triggers de base de datos.
+- Funcionalidad principal: Explorar carga primero los registros publicados de Supabase y, mientras la base pública devuelve cero filas, utiliza los 30 candidatos locales con coordenadas provisionales. El mapa muestra marcadores seleccionables y la lista permite abrir una ficha con dirección, acceso, horario, notas, comodidades, favoritos y un enlace peatonal a Google Maps.
+- Funcionalidad principal: los filtros actúan sobre la lista y los marcadores, la ubicación ordena por distancia real mediante Haversine y el modo SOS muestra las tres opciones admisibles más cercanas. Favoritos ya muestra fichas reales y permite regresar al punto seleccionado en el mapa.
 
 ## Comprobaciones realizadas
 
@@ -48,6 +50,8 @@
 - Inspección del `dist/sw.js`: precache de 7 recursos propios, ruta de navegación al shell y ninguna referencia a `maptiler`; por tanto no hay regla de caché runtime de mapas o rutas.
 - Verificación visual local en `http://127.0.0.1:5175/`: mapa base, controles, botones de navegación y el estado honesto de cero publicados están presentes.
 - `npm run check` completó sin errores tras añadir Auth, APIs comunitarias y progreso. La CLI de Supabase no está instalada y `.env.local` no contiene todavía `VITE_SUPABASE_PUBLISHABLE_KEY`, por lo que la migración y las pruebas RLS entre usuarios A/B siguen pendientes en el proyecto remoto.
+- La clave publicable de Supabase quedó configurada localmente y validada. La API pública devolvió cero baños porque las filas remotas continúan en borrador; el frontend usa el catálogo provisional hasta que existan filas publicadas con coordenadas.
+- Se verificó en navegador la presencia de 30 marcadores y 30 fichas, la selección de un marcador, la ficha detallada, el guardado local y la aparición del lugar en Favoritos.
 
 ## Pendiente, no simular como completado
 
@@ -58,7 +62,7 @@
 - Visitas de campo y resolución de posible duplicado en Sylvan Theater.
 - Políticas de lectura de registros publicados y permisos de usuarios. Las tablas operativas y su migración ya están implementadas; no hay todavía ninguna política de lectura porque todos los registros continúan en borrador.
 - Aplicar la migración comunitaria de etapa 5 y probar sus políticas con dos usuarios reales de prueba y un moderador. Hasta entonces, Auth permanece en modo no configurado y no se afirma que haya reportes remotos operativos.
-- Lectura desde el frontend de filas publicadas, fichas reales de favoritos y fecha de una futura copia local del catálogo.
+- Publicar filas operativas con coordenadas validadas para que Supabase reemplace automáticamente el catálogo provisional incluido en la aplicación.
 - Configuración de proveedor de mapas/rutas y despliegue.
 - Clave pública restringida de MapTiler para mostrar el mapa base. Sin ella, la pantalla usa su estado alternativo accesible y no carga mapas de terceros.
 

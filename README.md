@@ -16,9 +16,9 @@ El botón **SOS** transforma el mapa en un radar de urgencia. En ese modo se ign
 
 ## Estado del proyecto
 
-El proyecto está en desarrollo. La interfaz móvil, el mapa, el radar, los favoritos locales, el perfil y la PWA ya funcionan.
+El proyecto está en desarrollo. La interfaz móvil, el mapa con marcadores seleccionables, las fichas de cada baño, el radar, los favoritos locales, el perfil y la PWA ya funcionan.
 
-Existe un catálogo inicial de 30 ubicaciones candidatas, pero todavía se están verificando sus entradas, coordenadas, acceso y horarios. Por esa razón la aplicación no presenta esos registros como recomendaciones públicas hasta que tengan evidencia suficiente.
+Existe un catálogo inicial de 30 ubicaciones candidatas con coordenadas provisionales para probar la experiencia completa. Sus entradas, acceso y horarios todavía deben validarse antes de considerarlos recomendaciones públicas definitivas. Cuando Supabase tenga registros publicados con coordenadas, la aplicación los usa automáticamente en lugar del catálogo provisional.
 
 ## Tecnologías
 
