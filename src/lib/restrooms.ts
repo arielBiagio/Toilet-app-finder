@@ -101,10 +101,14 @@ function mapDatabaseRestroom(row: DatabaseRestroom): Restroom | null {
 
 export async function loadRestrooms() {
   if (supabase) {
-    const { data, error } = await supabase
+    const catalogRequest = supabase
       .from('restrooms')
       .select('id, seed_id, name, zone, address, entrance_latitude, entrance_longitude, entrance_notes, access_type, requires_purchase, requires_ticket, venue_hours_text, wheelchair_access, changing_table, family_restroom, gender_neutral, operational_status, evidence_status')
       .order('seed_id')
+    const { data, error } = await Promise.race([
+      catalogRequest,
+      new Promise<{ data: null; error: Error }>((resolve) => window.setTimeout(() => resolve({ data: null, error: new Error('Catalog timeout') }), 5_000)),
+    ])
     if (!error && data?.length) {
       const usable = (data as DatabaseRestroom[]).map(mapDatabaseRestroom).filter((row): row is Restroom => row !== null)
       if (usable.length) return { restrooms: usable, source: 'supabase' as const }

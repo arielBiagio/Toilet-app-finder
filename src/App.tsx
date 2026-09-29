@@ -48,9 +48,11 @@ function distanceLabel(distance: number | null) {
   return `${(distance / 1000).toFixed(1)} km`
 }
 
-function MapCanvas({ onMapError, origin, restrooms, selectedId, onSelect }: {
+function MapCanvas({ emergencyMode, onMapError, origin, priorityRestrooms, restrooms, selectedId, onSelect }: {
+  emergencyMode: boolean
   onMapError: () => void
   origin: Origin
+  priorityRestrooms: Restroom[]
   restrooms: Restroom[]
   selectedId: string | null
   onSelect: (id: string) => void
@@ -61,6 +63,9 @@ function MapCanvas({ onMapError, origin, restrooms, selectedId, onSelect }: {
   const restroomMarkersRef = useRef<Marker[]>([])
   const selectedCameraRef = useRef<{ center: [number, number]; zoom: number } | null>(null)
   const previousSelectedIdRef = useRef<string | null>(null)
+  const emergencyCameraRef = useRef<{ center: [number, number]; zoom: number } | null>(null)
+  const previousEmergencyModeRef = useRef(false)
+  const priorityIdsKey = priorityRestrooms.map((restroom) => restroom.id).join(',')
 
   useEffect(() => {
     if (!node.current || !runtimeConfig.mapTilerKey) return
@@ -89,15 +94,16 @@ function MapCanvas({ onMapError, origin, restrooms, selectedId, onSelect }: {
     if (!map) return
     restroomMarkersRef.current.forEach((marker) => marker.remove())
     restroomMarkersRef.current = restrooms.map((restroom) => {
+      const priority = priorityRestrooms.findIndex((item) => item.id === restroom.id) + 1
       const markerNode = document.createElement('button')
       markerNode.type = 'button'
-      markerNode.className = `restroom-marker${restroom.id === selectedId ? ' selected' : ''}`
+      markerNode.className = `restroom-marker${restroom.id === selectedId ? ' selected' : ''}${emergencyMode ? priority ? ` emergency-priority priority-${priority}` : ' emergency-muted' : ''}`
       markerNode.setAttribute('aria-label', `Ver ${restroom.name}`)
-      markerNode.innerHTML = '<span class="restroom-marker-pin"><i></i></span>'
+      markerNode.innerHTML = `<span class="restroom-marker-pin">${priority && emergencyMode ? `<b>${priority}</b>` : '<i></i>'}</span>`
       markerNode.addEventListener('click', () => onSelect(restroom.id))
       return new Marker({ element: markerNode, anchor: 'bottom' }).setLngLat([restroom.longitude, restroom.latitude]).addTo(map)
     })
-  }, [restrooms, selectedId, onSelect])
+  }, [emergencyMode, priorityIdsKey, restrooms, selectedId, onSelect])
 
   useEffect(() => {
     const map = mapRef.current
@@ -106,12 +112,50 @@ function MapCanvas({ onMapError, origin, restrooms, selectedId, onSelect }: {
     if (!Number.isFinite(coordinates[0]) || !Number.isFinite(coordinates[1])) return
     if (!userMarkerRef.current) {
       const markerNode = document.createElement('div')
-      markerNode.className = 'user-location-marker'
+      markerNode.className = `user-location-marker${emergencyMode ? ' emergency' : ''}`
       markerNode.setAttribute('aria-label', 'Tu ubicación')
       userMarkerRef.current = new Marker({ element: markerNode, anchor: 'center' }).setLngLat(coordinates).addTo(map)
     } else userMarkerRef.current.setLngLat(coordinates)
     map.flyTo({ center: coordinates, zoom: 15.4, duration: 900 })
-  }, [origin])
+  }, [emergencyMode, origin])
+
+  useEffect(() => {
+    userMarkerRef.current?.getElement().classList.toggle('emergency', emergencyMode)
+  }, [emergencyMode])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    const wasEmergency = previousEmergencyModeRef.current
+
+    if (emergencyMode && !wasEmergency) {
+      const center = map.getCenter()
+      emergencyCameraRef.current = { center: [center.lng, center.lat], zoom: map.getZoom() }
+    }
+
+    if (emergencyMode && origin && priorityRestrooms.length > 0) {
+      const points: [number, number][] = [[origin.longitude, origin.latitude], ...priorityRestrooms.map((restroom) => [restroom.longitude, restroom.latitude] as [number, number])]
+      const longitudes = points.map(([longitude]) => longitude)
+      const latitudes = points.map(([, latitude]) => latitude)
+      window.setTimeout(() => {
+        map.resize()
+        map.fitBounds([[Math.min(...longitudes), Math.min(...latitudes)], [Math.max(...longitudes), Math.max(...latitudes)]], {
+          padding: { top: 86, right: 48, bottom: 190, left: 48 },
+          maxZoom: 15.8,
+          duration: 850,
+        })
+      }, 120)
+    } else if (!emergencyMode && wasEmergency && emergencyCameraRef.current) {
+      const camera = emergencyCameraRef.current
+      emergencyCameraRef.current = null
+      window.setTimeout(() => {
+        map.resize()
+        map.flyTo({ center: camera.center, zoom: camera.zoom, duration: 700 })
+      }, 120)
+    }
+
+    previousEmergencyModeRef.current = emergencyMode
+  }, [emergencyMode, origin, priorityIdsKey])
 
   useEffect(() => {
     const map = mapRef.current
@@ -202,6 +246,7 @@ export default function App() {
   const [sheetPeek, setSheetPeek] = useState(false)
   const sheetRef = useRef<HTMLElement>(null)
   const sheetGestureStart = useRef<number | null>(null)
+  const locationRequestRef = useRef(0)
   const communityProgress = useCommunityProgress()
   const reportMapError = useCallback(() => setMapFailed(true), [])
   const selectRestroom = useCallback((id: string) => setSelectedId(id), [])
@@ -250,14 +295,15 @@ export default function App() {
     .sort((a, b) => origin ? (a.distance ?? 0) - (b.distance ?? 0) : (a.restroom.seedId ?? 999) - (b.restroom.seedId ?? 999)), [filters, origin, restrooms])
 
   const radarResults = useMemo(() => {
-    const radarOrigin = origin ?? { latitude: dcCenter[1], longitude: dcCenter[0] }
+    if (!origin) return []
     return restrooms.filter((restroom) => restroom.operationalStatus === 'operating' && restroom.requiresTicket !== true && restroom.requiresPurchase !== true)
       .filter((restroom) => !filters.accessible || restroom.wheelchairAccess === 'yes')
-      .map((restroom) => ({ restroom, distance: distanceMeters(radarOrigin, restroom) })).sort((a, b) => a.distance - b.distance).slice(0, 3)
+      .map((restroom) => ({ restroom, distance: distanceMeters(origin, restroom) })).sort((a, b) => a.distance - b.distance).slice(0, 3)
   }, [filters.accessible, origin, restrooms])
 
   const selectedRestroom = restrooms.find((restroom) => restroom.id === selectedId) ?? null
   const selectedDistance = selectedRestroom && origin ? distanceMeters(origin, selectedRestroom) : null
+  const primaryRadarResult = radarResults[0] ?? null
   const favoriteRestrooms = profile.favoriteIds.map((id) => restrooms.find((restroom) => restroom.id === id)).filter((item): item is Restroom => Boolean(item))
 
   function updateFilter(filter: keyof Filters) {
@@ -283,20 +329,41 @@ export default function App() {
 
   function requestDeviceLocation() {
     if (!navigator.geolocation) { setLocationState('denied'); return }
+    const requestId = ++locationRequestRef.current
     setLocationState('loading')
 
     const usePosition = ({ coords }: GeolocationPosition) => {
+      if (requestId !== locationRequestRef.current) return
       setOrigin({ kind: 'device', latitude: coords.latitude, longitude: coords.longitude })
       setLocationState(inCoverage(coords.latitude, coords.longitude) ? 'idle' : 'outside')
     }
 
     navigator.geolocation.getCurrentPosition(usePosition, (firstError) => {
+      if (requestId !== locationRequestRef.current) return
       if (firstError.code === firstError.PERMISSION_DENIED) { setLocationState('denied'); return }
 
       navigator.geolocation.getCurrentPosition(usePosition, (fallbackError) => {
+        if (requestId !== locationRequestRef.current) return
         setLocationState(fallbackError.code === fallbackError.PERMISSION_DENIED ? 'denied' : 'unavailable')
       }, { enableHighAccuracy: false, maximumAge: 600_000, timeout: 12_000 })
     }, { enableHighAccuracy: true, maximumAge: 120_000, timeout: 18_000 })
+  }
+
+  function toggleEmergencyMode() {
+    if (emergencyMode) {
+      setEmergencyMode(false)
+      setSelectedId(null)
+      setSheetPeek(false)
+      return
+    }
+
+    setEmergencyMode(true)
+    setSelectedId(null)
+    setSheetPeek(false)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    navigator.vibrate?.(35)
+    if (origin) setLocationState(inCoverage(origin.latitude, origin.longitude) ? 'idle' : 'outside')
+    else requestDeviceLocation()
   }
 
   function submitManualOrigin(event: FormEvent<HTMLFormElement>) {
@@ -307,7 +374,9 @@ export default function App() {
     const longitudeInput = parseCoordinate(form.get('longitude'))
     const longitude = longitudeInput > 0 ? -longitudeInput : longitudeInput
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return
+    locationRequestRef.current += 1
     setOrigin({ kind: 'manual', latitude, longitude }); setLocationState(inCoverage(latitude, longitude) ? 'idle' : 'outside'); setManualFormOpen(false)
+    if (emergencyMode) requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'smooth' }))
   }
 
   function startSheetGesture(event: ReactPointerEvent<HTMLButtonElement>) {
@@ -351,10 +420,9 @@ export default function App() {
   return <main className={`app-shell ${emergencyMode ? 'emergency-mode' : ''}`} onPointerDownCapture={dismissDetailFromBackground}>
     {activeView === 'explore' && <div className="screen explore-screen">
       <section className={`map-stage ${emergencyMode ? 'radar-map' : ''}`} aria-label="Mapa y cobertura">
-        <MapCanvas onMapError={reportMapError} origin={origin} restrooms={results.map((item) => item.restroom)} selectedId={selectedId} onSelect={selectRestroom} />
-        {emergencyMode && <div className="radar-sweep" aria-hidden="true" />}
+        <MapCanvas emergencyMode={emergencyMode} onMapError={reportMapError} origin={origin} priorityRestrooms={radarResults.map(({ restroom }) => restroom)} restrooms={emergencyMode ? restrooms : results.map((item) => item.restroom)} selectedId={selectedId} onSelect={selectRestroom} />
         <div className="map-location"><Icon name="pin" size={15} /><span>National Mall + downtown</span></div>
-        <button className={`sos-fab ${emergencyMode ? 'active' : ''}`} type="button" onClick={() => setEmergencyMode((current) => !current)} aria-label={emergencyMode ? 'Salir del modo urgencia' : 'Activar modo urgencia'}>{emergencyMode ? '×' : 'SOS'}</button>
+        <button className={`sos-fab ${emergencyMode ? 'active' : ''}`} type="button" onClick={toggleEmergencyMode} aria-label={emergencyMode ? 'Salir del modo urgencia' : 'Activar modo urgencia'}>{emergencyMode ? '×' : 'SOS'}</button>
         <button className="locate-button" type="button" onClick={requestDeviceLocation} disabled={locationState === 'loading'} aria-label="Usar mi ubicación"><Icon name="crosshair" size={21} /></button><div className="map-fade" aria-hidden="true" />
       </section>
 
@@ -362,11 +430,26 @@ export default function App() {
         <button className="sheet-handle" type="button" onPointerDown={startSheetGesture} onPointerUp={finishSheetGesture} aria-label={sheetPeek ? 'Mostrar resultados' : 'Mostrar más mapa'}><span /></button>
         {selectedRestroom && <RestroomDetail restroom={selectedRestroom} distance={selectedDistance} favorite={profile.favoriteIds.includes(selectedRestroom.id)} onClose={dismissSelectedRestroom} onFavorite={() => toggleFavorite(selectedRestroom.id)} />}
         {emergencyMode ? <>
-          <div className="sheet-heading"><div><span className="section-kicker hot">URGENCIA</span><h2 id="results-title">Más cercanos</h2></div><span className="live-dot">RADAR</span></div>
-          {!origin && <div className="action-grid"><button className="primary-button hot-button" type="button" onClick={requestDeviceLocation} disabled={locationState === 'loading'}><Icon name="crosshair" />{locationState === 'loading' ? 'Buscando…' : 'Usar mi ubicación'}</button><button className="secondary-button" type="button" onClick={() => setManualFormOpen((open) => !open)}>Elegir punto</button></div>}
-          {manualOriginForm}{locationState === 'denied' && <p className="notice">Permiso de ubicación bloqueado. Habilítalo en el navegador o elige un punto.</p>}{locationState === 'unavailable' && <p className="notice">No hubo señal de ubicación. Puedes reintentar o elegir un punto.</p>}{locationState === 'outside' && <p className="notice">Estás fuera de la cobertura inicial.</p>}
-          <label className="access-row"><span><Icon name="shield" /><strong>Accesibilidad</strong></span><input type="checkbox" checked={filters.accessible} onChange={() => updateFilter('accessible')} /></label>
-          <div className="place-list urgent-list">{radarResults.map(({ restroom, distance }) => <PlaceCard key={restroom.id} restroom={restroom} distance={distance} favorite={profile.favoriteIds.includes(restroom.id)} selected={selectedId === restroom.id} urgent onSelect={() => selectRestroom(restroom.id)} onFavorite={() => toggleFavorite(restroom.id)} />)}</div>
+          <div className="sheet-heading emergency-heading"><div><span className="section-kicker hot">SOS ACTIVO</span><h2 id="results-title">Ruta rápida</h2></div><span className="live-dot">EN VIVO</span></div>
+          {!origin ? <div className="emergency-locate" role="status">
+            <span className={`emergency-beacon ${locationState === 'loading' ? 'searching' : ''}`}><Icon name="crosshair" size={25} /></span>
+            <h3>{locationState === 'loading' ? 'Buscando tu ubicación…' : 'Necesitamos tu ubicación'}</h3>
+            <p>{locationState === 'loading' ? 'En cuanto aparezca, mostraremos tres opciones cercanas.' : 'Reintenta o elige un punto para calcular distancias reales.'}</p>
+            <div className="action-grid"><button className="primary-button hot-button" type="button" onClick={requestDeviceLocation} disabled={locationState === 'loading'}><Icon name="crosshair" />{locationState === 'loading' ? 'Buscando…' : 'Reintentar'}</button><button className="secondary-button" type="button" onClick={() => setManualFormOpen((open) => !open)}>{manualFormOpen ? 'Cerrar' : 'Elegir punto'}</button></div>
+          </div> : catalogSource === 'loading' ? <div className="emergency-loading" role="status"><span /><strong>Buscando baños cercanos…</strong></div> : primaryRadarResult ? <>
+            <article className="emergency-primary">
+              <button className="emergency-primary-main" type="button" onClick={() => selectRestroom(primaryRadarResult.restroom.id)}>
+                <span className="emergency-rank">1</span>
+                <span><small>MÁS CERCANO</small><strong>{primaryRadarResult.restroom.name}</strong><em>{primaryRadarResult.restroom.address}</em></span>
+              </button>
+              <div className="emergency-primary-meta"><span><Icon name="route" size={16} />{distanceLabel(primaryRadarResult.distance)}</span><span><Icon name="shield" size={16} />{accessLabel(primaryRadarResult.restroom)}</span></div>
+              {primaryRadarResult.restroom.venueHoursText && <p><Icon name="clock" size={15} />{primaryRadarResult.restroom.venueHoursText}</p>}
+              <a className="emergency-route" href={directionsUrl(primaryRadarResult.restroom)} target="_blank" rel="noreferrer"><Icon name="route" size={20} />Ir al más cercano</a>
+            </article>
+            <label className="access-row compact"><span><Icon name="shield" size={19} /><strong>Solo accesibles</strong></span><input type="checkbox" checked={filters.accessible} onChange={() => updateFilter('accessible')} /></label>
+            {radarResults.length > 1 && <><div className="emergency-alternatives"><span>ALTERNATIVAS</span><small>Por si la primera no está disponible</small></div><div className="place-list urgent-list">{radarResults.slice(1).map(({ restroom, distance }) => <PlaceCard key={restroom.id} restroom={restroom} distance={distance} favorite={profile.favoriteIds.includes(restroom.id)} selected={selectedId === restroom.id} urgent onSelect={() => selectRestroom(restroom.id)} onFavorite={() => toggleFavorite(restroom.id)} />)}</div></>}
+          </> : <><div className="quest-empty emergency-empty"><h3>No encontramos opciones</h3><p>Desactiva el filtro de accesibilidad o mueve el punto de origen.</p></div><label className="access-row compact"><span><Icon name="shield" size={19} /><strong>Solo accesibles</strong></span><input type="checkbox" checked={filters.accessible} onChange={() => updateFilter('accessible')} /></label></>}
+          {manualOriginForm}{locationState === 'denied' && <p className="notice">Permiso de ubicación bloqueado. Elige un punto manual.</p>}{locationState === 'unavailable' && <p className="notice">No hubo señal de ubicación. Reintenta o elige un punto.</p>}{locationState === 'outside' && <p className="notice">Estás fuera de la cobertura inicial; los resultados pueden quedar lejos.</p>}
         </> : <>
           <div className="sheet-heading"><div><span className="section-kicker">CERCA DE TI</span><h2 id="results-title">Explorar baños</h2></div><span className="result-count">{results.length} lugares</span></div>
           <div className="filter-strip" aria-label="Filtros de búsqueda"><button className={activeFilterCount ? 'filter-button active' : 'filter-button'} type="button"><Icon name="filter" size={17} />Filtros{activeFilterCount ? ` · ${activeFilterCount}` : ''}</button><label className={filters.withHours ? 'filter-chip selected' : 'filter-chip'}><input type="checkbox" checked={filters.withHours} onChange={() => updateFilter('withHours')} />Con horario</label><label className={filters.noPurchase ? 'filter-chip selected' : 'filter-chip'}><input type="checkbox" checked={filters.noPurchase} onChange={() => updateFilter('noPurchase')} />Sin compra</label><label className={filters.accessible ? 'filter-chip selected' : 'filter-chip'}><input type="checkbox" checked={filters.accessible} onChange={() => updateFilter('accessible')} />Accesible</label></div>
